@@ -20,41 +20,14 @@ Adds menu items to Lightroom.
 
 return {
 	
-	LrSdkVersion = 3.0,
-	LrSdkMinimumVersion = 1.3, -- minimum SDK version required by this plug-in
+	LrSdkVersion = 6.0,
+	LrSdkMinimumVersion = 6.0, -- minimum SDK version required by this plug-in
 
-	LrToolkitIdentifier = 'com.adobe.lightroom.sdk.helloworld',
+	LrToolkitIdentifier = 'com.adobe.lightroom.sdk.scroll2Lr',
 
-	LrPluginName = LOC "$$$/HelloWorld/PluginName=Hello World Sample",
+	LrPluginName = LOC "$$$/HelloWorld/PluginName=Scroll2Lr",
 	
-	-- Add the menu item to the File menu.
-	
-	LrExportMenuItems = {
-		title = "Hello World Dialog",
-		file = "ExportMenuItem.lua",
-	},
-
-	-- Add the menu item to the Library menu.
-	
-	LrLibraryMenuItems = {
-	    {
-		    title = LOC "$$$/HelloWorld/CustomDialog=Hello World Custom Dialog",
-		    file = "ShowCustomDialog.lua",
-		},
-		{
-		    title = LOC "$$$/HelloWorld/MultiBind=Hello World Custom Dialog with MultipleBind",
-		    file = "CustomDialogWithMultipleBind.lua",
-		},
-		{
-		    title = LOC "$$$/HelloWorld/RadioButtons=Hello World RadioButtons",
-		    file = "RadioButtons.lua",
-		},
-		{
-		    title = LOC "$$$/HelloWorld/DialogObserver=Hello World Custom Dialog with Observer",
-		    file = "CustomDialogWithObserver.lua",
-		},
-	},
-	VERSION = { major=10, minor=0, revision=0, build="202010011851-ef6045e0", },
+	VERSION = { major=0, minor=1, revision=0 },
 
 }
 
