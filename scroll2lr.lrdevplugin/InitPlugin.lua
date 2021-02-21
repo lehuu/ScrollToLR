@@ -55,11 +55,6 @@ local function createSenderSocket(context)
                 return
             end
 
-            if string.sub(err, 1, string.len("failed to open")) == "failed to open" then
-                LrDialogs.showError("Unable to make connection on TCP ports")
-                return
-            end
-
             socket:reconnect()
         end,
     }
@@ -127,12 +122,6 @@ local function createReceiverSocket(context)
             receiverConnected = false
 
             print('Receiver socket %d error: %s', RECEIVE_PORT, err)
-
-            if string.sub(err, 1, string.len("failed to open")) == "failed to open" then
-                LrDialogs.showError("Unable to make connection on TCP ports")
-                return
-            end
-
             socket:reconnect()
         end,
 
