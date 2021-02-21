@@ -1,16 +1,17 @@
-plugin =
-{
+plugin = {
     name = 'Scroll2Lr',
-    --loggingEnabled
-    prefs = import 'LrPrefs'.prefsForPlugin()
+    -- loggingEnabled
+    prefs = import'LrPrefs'.prefsForPlugin()
 }
 local logger = import 'LrLogger'(plugin.name)
 
 function initLogger(isEnabled) -- true or false
-    if plugin.prefs.loggingEnabled == isEnabled then return end
-    
+    if plugin.prefs.loggingEnabled == isEnabled then
+        return
+    end
+
     plugin.prefs.loggingEnabled = isEnabled
-    
+
     if isEnabled then
         logger:enable('logfile')
         logger:trace("--------------------------------------------------")

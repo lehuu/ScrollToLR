@@ -1,166 +1,100 @@
-local LrApplication = import 'LrApplication'
-local LrApplicationView = import 'LrApplicationView'
 local LrDevelopController = import 'LrDevelopController'
-local LrDialogs = import 'LrDialogs'
-local LrFileUtils = import 'LrFileUtils'
 local LrFunctionContext = import "LrFunctionContext"
-local LrPathUtils = import 'LrPathUtils'
 local LrSocket = import "LrSocket"
 local LrTasks = import "LrTasks"
 require 'Preferences'
 
-if nil == plugin.prefs.loggingEnabled then plugin.prefs.loggingEnabled = false end
+if nil == plugin.prefs.loggingEnabled then
+    plugin.prefs.loggingEnabled = false
+end
 
 initLogger(plugin.prefs.loggingEnabled)
 print('Initializing Plugin')
 
 ----------------------------------------------------------------------------------------------------------------------
 
-local SEND_PORT        = 58764
-local sender
-local senderConnected = false
-local senderShutdown = false
-
-local function createSenderSocket(context)
-
-    print("Creating sender socket")
-
-    local sender = LrSocket.bind
-    {
-        functionContext = context,
-        port = SEND_PORT,
-        mode = "send",
-        plugin = _PLUGIN,
-
-        onConnecting = function(socket, port)
-            print('Sender socket connecting: ' .. port)
-        end,
-
-        onConnected = function(socket, port)
-            print('Sender socket connected: ' .. port)
-            senderConnected = true
-        end,
-
-        onClosed = function(socket)
-            print('Sender socket closed: ' .. SEND_PORT)
-            senderConnected = false
-        end,
-
-        onError = function(socket, err)
-            print('Sender socket %d error: %s', SEND_PORT, err)
-            senderConnected = false
-
-            if senderShutdown then
-                print('Sender socket is shut down: ' .. SEND_PORT)
-                return
-            end
-
-            socket:reconnect()
-        end,
-    }
-
-    return sender
-end
-
-function sendMessage(messageId, message)
-    LrTasks.startAsyncTaskWithoutErrorHandler(function ()
-        print('Sending message "%s": "%s"', messageId, message)
-        sender:send(messageId .. '|' .. message .. '\n')
-        print('Sent')
-    end, 'sendMessage')
-end
-
-function sendEvent(eventName, eventParameter)
-    sendMessage("0", eventName .. '|' .. eventParameter)
-end
-
-----------------------------------------------------------------------------------------------------------------------
-
-local RECEIVE_PORT     = 58763
-local receiverConnected = false
-local receiverShutdown = false
-
-local function createReceiverSocket(context)
-
-    print('Creating receiver socket')
-
-    local receiver = LrSocket.bind
-    {
-        functionContext = context,
-        port = RECEIVE_PORT,
-        mode = "receive",
-        plugin = _PLUGIN,
-
-        onConnecting = function(socket, port)
-            print('Receiver socket connecting: ' .. port)
-        end,
-
-        onConnected = function(socket, port)
-            print('Receiver socket connected: ' .. port)
-            receiverConnected = true
-
-            sender = createSenderSocket(context)
-        end,
-
-        onClosed = function(socket)
-            print('Receiver socket closed: ' .. RECEIVE_PORT)
-            receiverConnected = false
-
-            sender:close()
-
-            if receiverShutdown == false then
-                socket:reconnect()
-            end
-        end,
-
-        onError = function(socket, err)
-            if receiverShutdown then
-                print('Receiver socket is shut down: ' .. RECEIVE_PORT)
-                return
-            end
-
-            receiverConnected = false
-
-            print('Receiver socket %d error: %s', RECEIVE_PORT, err)
-            socket:reconnect()
-        end,
-
-        onMessage = function(socket, message)
-            if type(message) ~= "string" then
-                print('Receiver socket message type ' .. type(message))
-            end
-
-            local messageId, message = string.split(message, '|')
-            local functionName, functionParams = string.split(message, '|')
-
-            print('Function "%s(%s)"', functionName, functionParams)
-            if 'ping' == functionName then
-                sendMessage(messageId, 'ok')
-            else
-                print('TODO Handle Message')
-            end
-        end,
-    }
-
-    return receiver
-end
-
-----------------------------------------------------------------------------------------------------------------------
-
 LrTasks.startAsyncTask(function()
-    
-    LrFunctionContext.callWithContext('scroll2lr_remote', function(context)
 
-        local version = LrApplication.versionTable()
-        if version['major'] < 10 then
-            print('Not initializing plugin for Lightroom version ' .. LrApplication.versionString())
-            return
+    -- global variables
+    SCROLL2LR = {
+        SERVER = {},
+        CLIENT = {},
+        RUNNING = true
+    } -- non-local but in SCROLL2LR namespace
+    -- local variables
+    local LastParam = ''
+    local UpdateParamPickup, UpdateParamNoPickup, UpdateParam
+    local sendIsConnected = false -- tell whether send socket is up or not
+    -- local constants--may edit these to change program behaviors
+    local RECEIVE_PORT = 58701
+    local SEND_PORT = 58702
+
+    LrFunctionContext.callWithContext('socket_remote', function(context)
+
+        -- wrapped in function so can be called when connection lost
+        local function startServer(senderContext)
+            SCROLL2LR.SERVER = LrSocket.bind {
+                functionContext = senderContext,
+                plugin = _PLUGIN,
+                port = SEND_PORT,
+                mode = 'send',
+                onClosed = function()
+                    sendIsConnected = false
+                    print('Sender closed: ' .. SEND_PORT)
+                end,
+                onConnected = function()
+                    sendIsConnected = true
+                    print('Sender connected: ' .. SEND_PORT)
+                end,
+                onError = function(socket, err)
+                    sendIsConnected = false
+                    print('Sender error: ' .. err)
+                    if SCROLL2LR.RUNNING then --
+                        socket:reconnect()
+                    end
+                end
+            }
         end
 
-        print('Starting sockets')
+        SCROLL2LR.CLIENT = LrSocket.bind {
+            functionContext = context,
+            plugin = _PLUGIN,
+            port = RECEIVE_PORT,
+            mode = 'receive',
+            onConnected = function(socket, port)
+                print('Receiver connected: ' .. RECEIVE_PORT)
+            end,
+            onMessage = function(_, message) -- message processor
+                print('Recever received message: ' .. RECEIVE_PORT)
+                if type(message) == 'string' then
+                    print(message)
+                end
+            end,
+            onClosed = function(socket)
+                if SCROLL2LR.RUNNING then
+                    -- closed connection, allow for reconnection
+                    print('Recever closed: ' .. RECEIVE_PORT)
 
-        local receiver = createReceiverSocket(context)
+                    socket:reconnect()
+                    -- calling SERVER:reconnect causes LR to hang for some reason...
+                    SCROLL2LR.SERVER:close()
+                    startServer(context)
+                end
+            end,
+            onError = function(socket, err)
+                print('Recever error: ' .. err)
+                if err == 'timeout' then -- reconnect if timed out
+                    socket:reconnect()
+                end
+            end
+        }
 
+        startServer(context)
+
+        if SCROLL2LR.RUNNING then -- didn't drop out of loop because of program termination
+            while SCROLL2LR.RUNNING do -- detect halt or reload
+                LrTasks.sleep(.29)
+            end
+        end
     end)
-
 end)
