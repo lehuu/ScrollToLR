@@ -7,6 +7,10 @@ return {
 
 	LrPluginName = "Scroll2Lr",
 	LrInitPlugin = "InitPlugin.lua",
+	LrShutdownPlugin = "ShutdownPlugin.lua",
+	LrShutdownApp = "ShutdownApp.lua",
+	LrEnablePlugin = "EnablePlugin.lua",
+	LrDisablePlugin = "DisablePlugin.lua",
 
 	LrForceInitPlugin = true,
 

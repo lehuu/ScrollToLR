@@ -4,7 +4,7 @@ plugin =
     --loggingEnabled
     prefs = import 'LrPrefs'.prefsForPlugin()
 }
-logger = import 'LrLogger'(plugin.name)
+local logger = import 'LrLogger'(plugin.name)
 
 function initLogger(isEnabled) -- true or false
     if plugin.prefs.loggingEnabled == isEnabled then return end
@@ -20,4 +20,8 @@ function initLogger(isEnabled) -- true or false
         logger:trace("--------------------------------------------------")
         logger:disable()
     end
+end
+
+function print(message)
+    logger:tracef(message)
 end
