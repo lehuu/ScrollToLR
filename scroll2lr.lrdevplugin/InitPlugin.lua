@@ -48,9 +48,10 @@ LrTasks.startAsyncTask(function()
                 end,
                 onError = function(socket, err)
                     sendIsConnected = false
-                    print('Sender error: ' .. err)
                     if SCROLL2LR.RUNNING then --
                         socket:reconnect()
+                    else
+                        print('Sender error: ' .. err)
                     end
                 end
             }
@@ -82,9 +83,10 @@ LrTasks.startAsyncTask(function()
                 end
             end,
             onError = function(socket, err)
-                print('Recever error: ' .. err)
                 if err == 'timeout' then -- reconnect if timed out
                     socket:reconnect()
+                else
+                    print('Recever error: ' .. err)
                 end
             end
         }
