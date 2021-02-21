@@ -4,9 +4,7 @@ plugin =
     --loggingEnabled
     prefs = import 'LrPrefs'.prefsForPlugin()
 }
-local logger = import 'LrLogger'(plugin.name)
-
-trace = logger:quickf('trace')
+logger = import 'LrLogger'(plugin.name)
 
 function initLogger(isEnabled) -- true or false
     if plugin.prefs.loggingEnabled == isEnabled then return end
