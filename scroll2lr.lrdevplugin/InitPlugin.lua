@@ -33,6 +33,7 @@ LrTasks.startAsyncTask(function()
 
         -- wrapped in function so can be called when connection lost
         local function startServer(senderContext)
+            print('Starting Sender: ' .. SEND_PORT)
             SCROLL2LR.SERVER = LrSocket.bind {
                 functionContext = senderContext,
                 plugin = _PLUGIN,
@@ -57,6 +58,7 @@ LrTasks.startAsyncTask(function()
             }
         end
 
+        print('Starting Receiver: ' .. RECEIVE_PORT)
         SCROLL2LR.CLIENT = LrSocket.bind {
             functionContext = context,
             plugin = _PLUGIN,
