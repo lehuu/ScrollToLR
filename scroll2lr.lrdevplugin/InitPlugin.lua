@@ -69,6 +69,12 @@ LrTasks.startAsyncTask(function()
             end,
             onMessage = function(_, message) -- message processor
                 print('Recever received message: ' .. RECEIVE_PORT)
+                if message == 'ping' then
+                    print('Sending Pong')
+                    if SCROLL2LR and SCROLL2LR.RUNNING then
+                        SCROLL2LR.SERVER:send('pong')
+                    end
+                end
                 if type(message) == 'string' then
                     print(message)
                 end
