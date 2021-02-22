@@ -2,6 +2,7 @@ local LrDevelopController = import 'LrDevelopController'
 local LrFunctionContext = import "LrFunctionContext"
 local LrSocket = import "LrSocket"
 local LrTasks = import "LrTasks"
+local LrApplication = import 'LrApplication'
 require 'Preferences'
 
 if nil == plugin.prefs.loggingEnabled then
@@ -13,98 +14,165 @@ outputToLog('Initializing Plugin')
 
 ----------------------------------------------------------------------------------------------------------------------
 
+local sender
+local senderPort = 58702
+local senderConnected = false
+local senderShutdown = false
+
+local function createSenderSocket(context)
+
+    outputToLog("Creating sender socket")
+
+    sender = LrSocket.bind {
+        functionContext = context,
+        port = senderPort,
+        mode = "send",
+        plugin = _PLUGIN,
+
+        onConnecting = function(socket, port)
+            outputToLog('Sender socket connecting: ' .. port)
+        end,
+
+        onConnected = function(socket, port)
+            outputToLog('Sender socket connected: ' .. port)
+            senderConnected = true
+        end,
+
+        onClosed = function(socket)
+            outputToLog('Sender socket closed: ' .. senderPort)
+            senderConnected = false
+        end,
+
+        onError = function(socket, err)
+            outputToLog('Sender socket ' .. senderPort .. ' error: ' .. err)
+            senderConnected = false
+
+            if senderShutdown then
+                outputToLog('Sender socket is shut down: ' .. senderPort)
+                return
+            end
+
+            socket:reconnect()
+        end
+    }
+
+    return sender
+end
+
+function sendMessage(messageId, message)
+    LrTasks.startAsyncTaskWithoutErrorHandler(function()
+        outputToLog('Sending message "' .. messageId .. '": "' .. message .. '"')
+        sender:send(messageId .. '|' .. message .. '\n')
+        outputToLog('Sent')
+    end, 'sendMessage')
+end
+
+----------------------------------------------------------------------------------------------------------------------
+
+local receiverPort = 58701
+local receiverConnected = false
+local receiverShutdown = false
+
+local function createReceiverSocket(context)
+
+    outputToLog('Creating receiver socket')
+
+    local receiver = LrSocket.bind {
+        functionContext = context,
+        port = receiverPort,
+        mode = "receive",
+        plugin = _PLUGIN,
+
+        onConnecting = function(socket, port)
+            outputToLog('Receiver socket connecting: ' .. port)
+        end,
+
+        onConnected = function(socket, port)
+            outputToLog('Receiver socket connected: ' .. port)
+            receiverConnected = true
+
+            createSenderSocket(context)
+        end,
+
+        onClosed = function(socket)
+            outputToLog('Receiver socket closed: ' .. receiverPort)
+            receiverConnected = false
+
+            sender:close()
+
+            if not receiverShutdown then
+                socket:reconnect()
+            end
+        end,
+
+        onError = function(socket, err)
+            if receiverShutdown then
+                outputToLog('Receiver socket is shut down: ' .. receiverPort)
+                return
+            end
+
+            receiverConnected = false
+
+            outputToLog('Receiver socket ' .. receiverPort .. ' error: ' .. err)
+
+            socket:reconnect()
+        end,
+
+        onMessage = function(socket, message)
+            if type(message) ~= "string" then
+                outputToLog('Receiver socket message type ' .. type(message))
+            end
+
+            local messageId, message = string.split(message, '|')
+
+            if 'ping' == message then
+                sendMessage(messageId, 'pong')
+            else
+                outputToLog(message)
+                -- LrTasks.startAsyncTaskWithoutErrorHandler(function()
+                --     handleMessage(messageId, functionName, functionParams)
+                -- end, 'handleMessage')
+            end
+        end
+    }
+
+    return receiver
+end
+
+----------------------------------------------------------------------------------------------------------------------
+
 LrTasks.startAsyncTask(function()
 
-    -- global variables
-    SCROLL2LR = {
-        SERVER = {},
-        CLIENT = {},
-        RUNNING = true
-    } -- non-local but in SCROLL2LR namespace
-    -- local variables
-    local LastParam = ''
-    local UpdateParamPickup, UpdateParamNoPickup, UpdateParam
-    local sendIsConnected = false -- tell whether send socket is up or not
-    -- local constants--may edit these to change program behaviors
-    local RECEIVE_PORT = 58701
-    local SEND_PORT = 58702
+    LrFunctionContext.callWithContext('scroll2lr', function(context)
 
-    LrFunctionContext.callWithContext('socket_remote', function(context)
-
-        -- wrapped in function so can be called when connection lost
-        local function startServer(senderContext)
-            outputToLog('Starting Sender: ' .. SEND_PORT)
-            SCROLL2LR.SERVER = LrSocket.bind {
-                functionContext = senderContext,
-                plugin = _PLUGIN,
-                port = SEND_PORT,
-                mode = 'send',
-                onClosed = function()
-                    sendIsConnected = false
-                    outputToLog('Sender closed: ' .. SEND_PORT)
-                end,
-                onConnected = function()
-                    sendIsConnected = true
-                    outputToLog('Sender connected: ' .. SEND_PORT)
-                end,
-                onError = function(socket, err)
-                    sendIsConnected = false
-                    if SCROLL2LR.RUNNING then --
-                        socket:reconnect()
-                    else
-                        outputToLog('Sender error: ' .. err)
-                    end
-                end
-            }
+        local version = LrApplication.versionTable()
+        if version['major'] < 9 then
+            outputToLog('Not initializing plugin for Lightroom version ' .. LrApplication.versionString())
+            return
         end
 
-        outputToLog('Starting Receiver: ' .. RECEIVE_PORT)
-        SCROLL2LR.CLIENT = LrSocket.bind {
-            functionContext = context,
-            plugin = _PLUGIN,
-            port = RECEIVE_PORT,
-            mode = 'receive',
-            onConnected = function(socket, port)
-                outputToLog('Receiver connected: ' .. RECEIVE_PORT)
-            end,
-            onMessage = function(_, message) -- message processor
-                outputToLog('Recever received message: ' .. RECEIVE_PORT)
-                if message == 'ping' then
-                    outputToLog('Sending Pong')
-                    if SCROLL2LR and SCROLL2LR.RUNNING then
-                        SCROLL2LR.SERVER:send('pong')
-                    end
-                end
-                if type(message) == 'string' then
-                    outputToLog(message)
-                end
-            end,
-            onClosed = function(socket)
-                outputToLog('Receiver closed: ' .. RECEIVE_PORT)
-                if SCROLL2LR.RUNNING then
-                    -- closed connection, allow for reconnection
-                    socket:reconnect()
-                    -- calling SERVER:reconnect causes LR to hang for some reason...
-                    SCROLL2LR.SERVER:close()
-                    startServer(context)
-                end
-            end,
-            onError = function(socket, err)
-                if err == 'timeout' and SCROLL2LR.RUNNING then -- reconnect if timed out
-                    socket:reconnect()
-                else
-                    outputToLog('Receiver error: ' .. err)
-                end
-            end
-        }
+        outputToLog('Starting sockets')
 
-        startServer(context)
+        local receiver = createReceiverSocket(context)
 
-        while SCROLL2LR.RUNNING do -- detect halt or reload
-            LrTasks.sleep(.5)
+        plugin.running = true
+        while plugin.running do
+            LrTasks.sleep(0.25) -- 250ms
         end
-        SCROLL2LR.CLIENT:close()
-        SCROLL2LR.SERVER:close()
+
+        outputToLog('Stopping sockets')
+
+        receiverShutdown = true
+        senderShutdown = true
+
+        if receiverConnected then
+            receiver:close()
+        end
+
+        outputToLog('Stopped sockets')
+
+        plugin.shutdown = true
 
     end)
+
 end)

@@ -1,5 +1,7 @@
 plugin = {
     name = 'Scroll2Lr',
+    running = false,
+    shutdown = false,
     -- loggingEnabled
     prefs = import'LrPrefs'.prefsForPlugin()
 }
@@ -21,4 +23,18 @@ end
 
 function outputToLog(message)
     logger:tracef(message)
+end
+
+function shutdownPlugin()
+    outputToLog('Shutdown started')
+
+    if plugin.running then
+        -- tell the run loop to exit
+        plugin.shutdown = false
+        plugin.running = false
+
+        outputToLog('Shutdown initialized')
+    end
+
+    outputToLog('Shutdown finished')
 end
