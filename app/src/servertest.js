@@ -1,4 +1,4 @@
-import * as net from "net";
+const net = require("net");
 
 const senderSocket = net.connect({ host: "localhost", port: 58701 }, () => {
   // 'connect' listener
