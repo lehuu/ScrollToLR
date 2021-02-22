@@ -1,0 +1,15 @@
+{
+  "name": "scroll2lr",
+  "version": "0.1.0",
+  "description": "UI App for Scroll2Lr",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "Phuoc Le",
+  "license": "GNU GPLV3",
+  "devDependencies": {
+    "electron": "^11.3.0"
+  }
+}
