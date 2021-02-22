@@ -113,9 +113,11 @@ local function createReceiverSocket(context)
 
             receiverConnected = false
 
-            outputToLog('Receiver socket ' .. receiverPort .. ' error: ' .. err)
-
+            if err ~= 'timeout' then
+                outputToLog('Receiver socket ' .. receiverPort .. ' error: ' .. err)
+            end
             socket:reconnect()
+
         end,
 
         onMessage = function(socket, message)
