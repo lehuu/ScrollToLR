@@ -19,6 +19,6 @@ function initLogger(isEnabled) -- true or false
     end
 end
 
-function print(message)
+function outputToLog(message)
     logger:tracef(message)
 end

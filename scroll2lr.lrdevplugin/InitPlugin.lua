@@ -9,7 +9,7 @@ if nil == plugin.prefs.loggingEnabled then
 end
 
 initLogger(plugin.prefs.loggingEnabled)
-print('Initializing Plugin')
+outputToLog('Initializing Plugin')
 
 ----------------------------------------------------------------------------------------------------------------------
 
@@ -33,7 +33,7 @@ LrTasks.startAsyncTask(function()
 
         -- wrapped in function so can be called when connection lost
         local function startServer(senderContext)
-            print('Starting Sender: ' .. SEND_PORT)
+            outputToLog('Starting Sender: ' .. SEND_PORT)
             SCROLL2LR.SERVER = LrSocket.bind {
                 functionContext = senderContext,
                 plugin = _PLUGIN,
@@ -41,49 +41,48 @@ LrTasks.startAsyncTask(function()
                 mode = 'send',
                 onClosed = function()
                     sendIsConnected = false
-                    print('Sender closed: ' .. SEND_PORT)
+                    outputToLog('Sender closed: ' .. SEND_PORT)
                 end,
                 onConnected = function()
                     sendIsConnected = true
-                    print('Sender connected: ' .. SEND_PORT)
+                    outputToLog('Sender connected: ' .. SEND_PORT)
                 end,
                 onError = function(socket, err)
                     sendIsConnected = false
                     if SCROLL2LR.RUNNING then --
                         socket:reconnect()
                     else
-                        print('Sender error: ' .. err)
+                        outputToLog('Sender error: ' .. err)
                     end
                 end
             }
         end
 
-        print('Starting Receiver: ' .. RECEIVE_PORT)
+        outputToLog('Starting Receiver: ' .. RECEIVE_PORT)
         SCROLL2LR.CLIENT = LrSocket.bind {
             functionContext = context,
             plugin = _PLUGIN,
             port = RECEIVE_PORT,
             mode = 'receive',
             onConnected = function(socket, port)
-                print('Receiver connected: ' .. RECEIVE_PORT)
+                outputToLog('Receiver connected: ' .. RECEIVE_PORT)
             end,
             onMessage = function(_, message) -- message processor
-                print('Recever received message: ' .. RECEIVE_PORT)
+                outputToLog('Recever received message: ' .. RECEIVE_PORT)
                 if message == 'ping' then
-                    print('Sending Pong')
+                    outputToLog('Sending Pong')
                     if SCROLL2LR and SCROLL2LR.RUNNING then
                         SCROLL2LR.SERVER:send('pong')
                     end
                 end
                 if type(message) == 'string' then
-                    print(message)
+                    outputToLog(message)
                 end
             end,
             onClosed = function(socket)
+                outputToLog('Receiver closed: ' .. RECEIVE_PORT)
                 if SCROLL2LR.RUNNING then
                     -- closed connection, allow for reconnection
-                    print('Recever closed: ' .. RECEIVE_PORT)
-
                     socket:reconnect()
                     -- calling SERVER:reconnect causes LR to hang for some reason...
                     SCROLL2LR.SERVER:close()
@@ -91,20 +90,21 @@ LrTasks.startAsyncTask(function()
                 end
             end,
             onError = function(socket, err)
-                if err == 'timeout' then -- reconnect if timed out
+                if err == 'timeout' and SCROLL2LR.RUNNING then -- reconnect if timed out
                     socket:reconnect()
                 else
-                    print('Recever error: ' .. err)
+                    outputToLog('Receiver error: ' .. err)
                 end
             end
         }
 
         startServer(context)
 
-        if SCROLL2LR.RUNNING then -- didn't drop out of loop because of program termination
-            while SCROLL2LR.RUNNING do -- detect halt or reload
-                LrTasks.sleep(.29)
-            end
+        while SCROLL2LR.RUNNING do -- detect halt or reload
+            LrTasks.sleep(.5)
         end
+        SCROLL2LR.CLIENT:close()
+        SCROLL2LR.SERVER:close()
+
     end)
 end)

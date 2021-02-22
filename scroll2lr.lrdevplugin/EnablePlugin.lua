@@ -1,2 +1,2 @@
 require 'Preferences'
-print('Enabling Plugin')
+outputToLog('Enabling Plugin')
