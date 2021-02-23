@@ -59,10 +59,10 @@ local function createSenderSocket(context)
     return sender
 end
 
-function sendMessage(messageId, message)
+function sendMessage(message)
     LrTasks.startAsyncTaskWithoutErrorHandler(function()
-        outputToLog('Sending message "' .. messageId .. '": "' .. message .. '"')
-        sender:send(messageId .. '|' .. message .. '\n')
+        outputToLog('Sending message: "' .. message .. '"')
+        sender:send(message .. '\n')
         outputToLog('Sent')
     end, 'sendMessage')
 end
@@ -125,12 +125,14 @@ local function createReceiverSocket(context)
                 outputToLog('Receiver socket message type ' .. type(message))
             end
 
-            local messageId, message = string.split(message, '|')
-
-            if 'ping' == message then
-                sendMessage(messageId, 'pong')
+            if message == 'ping' then
+                sendMessage('pong')
             else
+                local split = message:find('|', 1, true)
+                local param = message:sub(1, split - 1)
+                local value = message:sub(split + 1)
                 outputToLog(message)
+                return
                 -- LrTasks.startAsyncTaskWithoutErrorHandler(function()
                 --     handleMessage(messageId, functionName, functionParams)
                 -- end, 'handleMessage')
